@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       Site Feedback
- * Description:       Visuele feedbacktool voor beheerders (à la BugHerd): klik een element aan, beschrijf wat er mis is en de tool bewaart gebruiker, URL, element, muispositie en een screenshot. Met koppeling in twee richtingen met Asana.
+ * Description:       Visuele feedbacktool voor beheerders: klik een element aan, beschrijf wat er mis is en de tool bewaart gebruiker, URL, element, muispositie en een screenshot. Met koppeling in twee richtingen met Asana.
  * Version:           1.3.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
@@ -26,7 +26,7 @@ if ( is_admin() ) {
 }
 
 /**
- * Eenmalige opruiming bij updaten naar 1.2: Shopify-/token-ondersteuning is verhuisd naar een losse Shopify-app.
+ * Eenmalige opruiming bij updaten naar 1.2: de oude token-ondersteuning voor externe sites is verwijderd.
  */
 add_action(
 	'admin_init',

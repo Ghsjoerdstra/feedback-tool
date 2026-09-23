@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+jobs:
+  test:
+    name: Controleren
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PHP-syntax
+        run: find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
+
+      - name: JavaScript-syntax
+        run: node --check assets/widget.js
+
+      - name: Tests Asana-koppeling
+        run: php tests/asana-sync-test.php
+
+  release:
+    name: Release (installeerbare zip)
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versie in plugin moet gelijk zijn aan tag
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PLUGIN_VERSION=$(grep -m1 -oP 'Version:\s*\K[0-9.]+' site-feedback.php)
+          echo "Tag: $TAG_VERSION  Plugin: $PLUGIN_VERSION"
+          test "$TAG_VERSION" = "$PLUGIN_VERSION"
+
+      - name: Zip bouwen
+        run: |
+          # git archive volgt de export-ignore-regels uit .gitattributes (geen tests, workflow of git-bestanden).
+          mkdir -p build
+          git archive --format=zip --prefix=site-feedback/ -o build/site-feedback.zip HEAD
+          unzip -l build/site-feedback.zip
+
+      - name: GitHub-release aanmaken
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" build/site-feedback.zip --title "Site Feedback ${GITHUB_REF_NAME#v}" --generate-notes
