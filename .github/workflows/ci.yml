@@ -19,8 +19,8 @@ jobs:
       - name: JavaScript-syntax
         run: node --check assets/widget.js
 
-      - name: Tests Asana-koppeling
-        run: php tests/asana-sync-test.php
+      - name: Tests
+        run: for t in tests/*-test.php; do echo "== $t"; php "$t" || exit 1; done
 
   release:
     name: Release (installeerbare zip)

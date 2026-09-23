@@ -37,6 +37,18 @@ Deze repo is de plugin zelf: de bestanden staan direct in de hoofdmap.
 2. Activeer de plugin.
 3. Open de website terwijl je ingelogd bent. Rechts staat nu het icoon.
 
+## Updates
+
+Na de eerste installatie hoef je geen zip meer te uploaden. De plugin kijkt zelf naar nieuwe [releases](../../releases) op GitHub:
+
+- Staat er een nieuwere versie, dan verschijnt die gewoon onder **Plugins** en **Dashboard → Updates**, met een knop **Nu bijwerken**.
+- Je kunt voor deze plugin ook **automatische updates** aanzetten.
+- Dat gaat via de `Update URI`-header. WordPress zal daardoor nooit een plugin met dezelfde naam uit de officiële bibliotheek over deze plugin heen installeren.
+
+Wil je direct controleren? Klik onder **Plugins** bij Site Feedback op **Controleer op updates**. Anders controleert WordPress dit twee keer per dag.
+
+Heb je de plugin met `git clone` geïnstalleerd, dan biedt WordPress geen updates aan, want een zip-update zou de `.git`-map wissen. Werk die installatie bij met `git pull`.
+
 ## Asana koppelen
 
 1. Maak in Asana een Personal Access Token aan: **Mijn apps → Developer console → Create new token**.
@@ -90,6 +102,7 @@ Elke taak bevat:
 | Asana-client | `includes/asana.php` |
 | wp-admin: lijst, details, instellingen | `includes/admin.php` |
 | Front-end widget | `assets/widget.js` |
+| Updates via GitHub-releases | `includes/updater.php` |
 
 - Feedback wordt opgeslagen als niet-publiek post type `sfb_feedback`.
 - Screenshots staan in `wp-content/uploads/site-feedback/`, met willekeurige bestandsnamen.
@@ -101,6 +114,7 @@ Elke taak bevat:
 
 ```bash
 php tests/asana-sync-test.php
+php tests/updater-test.php
 ```
 
 De tests bootsen WordPress en Asana na, dus je hebt geen WordPress-installatie of Asana-account nodig. Bij elke push controleert GitHub Actions dit:
@@ -115,11 +129,12 @@ De tests bootsen WordPress en Asana na, dus je hebt geen WordPress-installatie o
 2. Commit de wijziging en push een tag met hetzelfde nummer:
 
    ```bash
-   git tag v1.3.0
-   git push origin v1.3.0
+   git tag v1.4.0
+   git push origin v1.4.0
    ```
 
 3. GitHub Actions test de code, bouwt `site-feedback.zip` en zet die in een nieuwe release. In de zip zitten de tests, de workflow en de git-bestanden niet.
+4. Binnen 12 uur zien alle installaties de update onder Plugins. Na **Controleer op updates** zie je hem direct.
 
 ### Beperkingen van screenshots
 
