@@ -1,0 +1,13 @@
+# Builds
+*.zip
+build/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Dependencies (Shopify-app)
+node_modules/
+.env
