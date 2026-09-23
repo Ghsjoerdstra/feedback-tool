@@ -748,7 +748,15 @@
           toast(fresh.status === 'resolved' ? 'In Asana afgerond → feedback opgelost ✓' : 'In Asana heropend → feedback weer open');
           loadPageCount();
         }
-      }).catch(function () {});
+      }).catch(function (err) {
+        if (err.status !== 404 || !state.current || state.current.id !== it.id) return;
+        // De taak is in Asana verwijderd, dus de feedback staat nu in de prullenbak.
+        toast('Deze feedback is in Asana verwijderd en staat nu in de prullenbak');
+        state.items = state.items.filter(function (x) { return x.id !== it.id; });
+        state.track = null; hide(sel); hide(dot);
+        loadPageCount();
+        render('list');
+      });
     }
 
     function sendReply() {
@@ -816,10 +824,13 @@
           sendReply();
           break;
         case 'delete':
-          if (!window.confirm('Deze feedback verwijderen? (Hij gaat naar de prullenbak in WordPress.)')) return;
+          if (!window.confirm('Deze feedback verwijderen?\n\nHij gaat naar de prullenbak in WordPress' +
+            (state.current.asana && state.current.asana.gid ? ' en de taak in Asana wordt ook verwijderd' : '') +
+            '. Beide zijn 30 dagen terug te halen.')) return;
           api('DELETE', '/feedback/' + state.current.id)
-            .then(function () {
-              toast('Feedback verwijderd');
+            .then(function (res) {
+              if (res && res.warning) toast(res.warning, true);
+              else toast('Feedback verwijderd' + (res && res.asana_deleted ? ', ook in Asana' : ''));
               state.track = null; hide(sel); hide(dot);
               loadPageCount();
               render('list');

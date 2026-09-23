@@ -279,8 +279,17 @@ function sfb_rest_delete( WP_REST_Request $request ) {
 	if ( is_wp_error( $post ) ) {
 		return $post;
 	}
-	wp_trash_post( $post->ID ); // Naar de prullenbak, zodat het nog terug te halen is.
-	return rest_ensure_response( array( 'deleted' => true ) );
+	$had_task = (bool) get_post_meta( $post->ID, '_sfb_asana_gid', true );
+	wp_trash_post( $post->ID ); // Naar de prullenbak (30 dagen terug te zetten); de hook verwijdert ook de Asana-taak.
+
+	$pending = (bool) get_post_meta( $post->ID, '_sfb_asana_delete_pending', true );
+	return rest_ensure_response(
+		array(
+			'deleted'       => true,
+			'asana_deleted' => $had_task && ! $pending,
+			'warning'       => $pending ? 'Feedback verwijderd, maar de Asana-taak kon nog niet worden verwijderd. Dat wordt later automatisch opnieuw geprobeerd.' : '',
+		)
+	);
 }
 
 function sfb_rest_asana( WP_REST_Request $request ) {

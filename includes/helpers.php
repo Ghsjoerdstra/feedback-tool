@@ -149,6 +149,16 @@ function sfb_screenshot_url( $post_id ) {
 	return $file ? sfb_screenshot_dir()['url'] . rawurlencode( basename( $file ) ) : '';
 }
 
+// Terugzetten uit de prullenbak: weer gepubliceerd (WordPress maakt er standaard een concept van).
+add_filter(
+	'wp_untrash_post_status',
+	function ( $new_status, $post_id ) {
+		return get_post_type( $post_id ) === SFB_POST_TYPE ? 'publish' : $new_status;
+	},
+	10,
+	2
+);
+
 // Screenshot opruimen wanneer feedback definitief verwijderd wordt.
 add_action(
 	'before_delete_post',

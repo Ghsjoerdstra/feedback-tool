@@ -65,6 +65,18 @@ add_action(
 				echo 'resolved' === $f['status'] ? '<span class="sfb-badge sfb-resolved">Opgelost</span>' : '<span class="sfb-badge sfb-open">Open</span>';
 				break;
 			case 'sfb_asana':
+				if ( 'trash' === get_post_status( $post_id ) ) {
+					if ( get_post_meta( $post_id, '_sfb_asana_delete_pending', true ) ) {
+						echo '<span class="sfb-asana-error">⚠ Taak nog niet verwijderd in Asana (wordt opnieuw geprobeerd)</span>';
+					} elseif ( get_post_meta( $post_id, '_sfb_asana_deleted', true ) ) {
+						echo '<span class="sfb-muted">Verwijderd in Asana</span>';
+					} elseif ( get_post_meta( $post_id, '_sfb_asana_trashed_gid', true ) ) {
+						echo '<span class="sfb-muted">Taak ook verwijderd in Asana</span>';
+					} else {
+						echo '<span class="sfb-muted">—</span>';
+					}
+					break;
+				}
 				if ( $f['asana']['url'] ) {
 					printf( '<a href="%s" target="_blank">Open taak ↗</a>', esc_url( $f['asana']['url'] ) );
 					$bits = array_filter( array( $f['asana']['assignee'] ? '👤 ' . $f['asana']['assignee'] : '', $f['asana']['section'], $f['asana']['comments'] ? '💬 ' . count( $f['asana']['comments'] ) : '' ) );

@@ -64,12 +64,13 @@ Heb je de plugin met `git clone` geïnstalleerd, dan biedt WordPress geen update
 | Taak voltooid of heropend | Feedback wordt *opgelost* of *open* |
 | Toegewezen persoon, deadline, sectie | Zichtbaar in widget, lijst en detailpagina |
 | Reacties op de taak | Zichtbaar in de widget en in wp-admin |
-| Taak verwijderd | De koppeling wordt losgelaten en niet automatisch opnieuw aangemaakt |
+| Taak verwijderd | Feedback gaat naar de prullenbak in WordPress |
 
 | In de widget / wp-admin | → In Asana |
 |---|---|
 | Markeer opgelost of heropen | Taak wordt voltooid of heropend |
 | Reactie plaatsen | Reactie op de taak, met jouw naam erbij |
+| Feedback verwijderen (prullenbak) | Taak wordt verwijderd |
 
 Zet je een taak in Asana op **done**, dan wordt de feedback in WordPress *opgelost*. Heropen je hem, dan staat hij weer *open*. Dat werkt ook op een lokale site, omdat WordPress de wijzigingen zelf ophaalt:
 
@@ -77,6 +78,12 @@ Zet je een taak in Asana op **done**, dan wordt de feedback in WordPress *opgelo
 - **Bij het openen van een item**: ook de reacties worden dan opgehaald.
 - **Elke 15 minuten** via WP-cron.
 - **Realtime** via een Asana-webhook (optioneel). Daarvoor moet de site publiek bereikbaar zijn via https. De webhook is beveiligd met een handshake en een HMAC-handtekening.
+
+**Verwijderen** gaat ook in twee richtingen, en is aan beide kanten 30 dagen terug te draaien:
+
+- **Verwijder je feedback in WordPress** (in de widget, of via de prullenbak in wp-admin), dan wordt de taak in Asana ook verwijderd. Asana bewaart hem 30 dagen in de eigen prullenbak. Lukt het verwijderen in Asana niet, bijvoorbeeld omdat er geen verbinding is, dan probeert WP-cron het later opnieuw.
+- **Verwijder je de taak in Asana**, dan gaat de feedback in WordPress naar de prullenbak. WordPress merkt dat net zo snel als een taak op done, dus ook lokaal binnen een paar seconden. Verplaats je een taak naar een ander project, dan telt dat niet als verwijderen.
+- **Zet je feedback terug uit de prullenbak van WordPress**, dan krijgt die weer een nieuwe Asana-taak, als automatisch versturen aan staat.
 
 Reacties die je vanuit WordPress plaatst, staan in Asana op naam van de eigenaar van het token. Daarom zet de plugin je naam ervoor.
 
@@ -129,8 +136,8 @@ De tests bootsen WordPress en Asana na, dus je hebt geen WordPress-installatie o
 2. Commit de wijziging en push een tag met hetzelfde nummer:
 
    ```bash
-   git tag v1.4.0
-   git push origin v1.4.0
+   git tag v1.5.0
+   git push origin v1.5.0
    ```
 
 3. GitHub Actions test de code, bouwt `site-feedback.zip` en zet die in een nieuwe release. In de zip zitten de tests, de workflow en de git-bestanden niet.

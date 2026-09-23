@@ -361,12 +361,7 @@ class SFB_Asana {
 		if ( is_wp_error( $task ) ) {
 			$err = $task->get_error_data();
 			if ( isset( $err['http'] ) && 404 === (int) $err['http'] ) {
-				// Taak is in Asana verwijderd: koppeling loslaten (en niet automatisch opnieuw aanmaken).
-				delete_post_meta( $post_id, '_sfb_asana_gid' );
-				delete_post_meta( $post_id, '_sfb_asana_url' );
-				delete_post_meta( $post_id, '_sfb_asana_data' );
-				delete_post_meta( $post_id, '_sfb_asana_comments' );
-				update_post_meta( $post_id, '_sfb_asana_deleted', 1 );
+				self::remote_deleted( $post_id ); // Taak is in Asana verwijderd: feedback naar de prullenbak.
 			}
 			return $task;
 		}
@@ -476,8 +471,198 @@ class SFB_Asana {
 		}
 
 		update_option( 'sfb_last_batch_sync', $started, false );
+
+		// Verwijderde taken zie je niet in "gewijzigd sinds", dus apart controleren.
+		$trashed = self::detect_deleted();
 		delete_transient( 'sfb_batch_lock' );
-		return $updated;
+		return $updated + ( is_wp_error( $trashed ) ? 0 : $trashed );
+	}
+
+	/* ---------------------------------------------------------------------
+	 * Verwijderen, in twee richtingen
+	 * ------------------------------------------------------------------ */
+
+	const LINK_META = array( '_sfb_asana_gid', '_sfb_asana_url', '_sfb_asana_data', '_sfb_asana_comments', '_sfb_asana_error' );
+
+	/**
+	 * Hook "trashed_post": feedback naar de prullenbak in WordPress → taak verwijderen in Asana
+	 * (daar belandt hij 30 dagen in de prullenbak van Asana).
+	 */
+	public static function on_trash( $post_id ) {
+		if ( get_post_type( $post_id ) !== SFB_POST_TYPE ) {
+			return;
+		}
+		$gid = get_post_meta( $post_id, '_sfb_asana_gid', true );
+		if ( $gid ) {
+			self::delete_remote( $post_id, $gid );
+		}
+	}
+
+	/**
+	 * Hook "before_delete_post": definitief verwijderen zonder eerst de prullenbak (of een eerder mislukte poging).
+	 */
+	public static function on_delete( $post_id ) {
+		if ( get_post_type( $post_id ) !== SFB_POST_TYPE ) {
+			return;
+		}
+		$gid = get_post_meta( $post_id, '_sfb_asana_gid', true );
+		if ( $gid ) {
+			self::delete_remote( $post_id, $gid );
+		}
+	}
+
+	/**
+	 * Hook "untrashed_post": feedback teruggezet uit de prullenbak.
+	 */
+	public static function on_untrash( $post_id ) {
+		if ( get_post_type( $post_id ) !== SFB_POST_TYPE ) {
+			return;
+		}
+		if ( get_post_meta( $post_id, '_sfb_asana_delete_pending', true ) ) {
+			// De taak in Asana is nooit verwijderd (dat mislukte): koppeling gewoon behouden.
+			delete_post_meta( $post_id, '_sfb_asana_delete_pending' );
+			return;
+		}
+		// De oude taak is weg (in de prullenbak van Asana): met een schone lei een nieuwe maken.
+		foreach ( array_merge( self::LINK_META, array( '_sfb_asana_deleted', '_sfb_asana_trashed_gid' ) ) as $key ) {
+			delete_post_meta( $post_id, $key );
+		}
+		if ( self::is_configured() && ! empty( sfb_settings()['asana_auto'] ) ) {
+			self::create_task( $post_id );
+		}
+	}
+
+	/**
+	 * Verwijdert de taak in Asana. Mislukt dat (bijv. geen verbinding), dan probeert WP-cron het later opnieuw.
+	 *
+	 * @return true|WP_Error
+	 */
+	private static function delete_remote( $post_id, $gid ) {
+		$res = sfb_settings()['asana_token']
+			? self::request( 'DELETE', '/tasks/' . rawurlencode( $gid ) )
+			: new WP_Error( 'sfb_asana_config', 'Geen Asana-token ingesteld.' );
+
+		$err = is_wp_error( $res ) ? (array) $res->get_error_data() : array();
+		if ( is_wp_error( $res ) && 404 !== (int) ( $err['http'] ?? 0 ) ) {
+			update_post_meta( $post_id, '_sfb_asana_delete_pending', $gid );
+			return $res;
+		}
+
+		// Verwijderd (of was al weg): koppeling opruimen, maar onthouden welke taak het was.
+		delete_post_meta( $post_id, '_sfb_asana_delete_pending' );
+		update_post_meta( $post_id, '_sfb_asana_trashed_gid', $gid );
+		foreach ( self::LINK_META as $key ) {
+			delete_post_meta( $post_id, $key );
+		}
+		return true;
+	}
+
+	/**
+	 * De taak is in Asana verwijderd: feedback naar de prullenbak in WordPress (30 dagen terug te zetten).
+	 */
+	private static function remote_deleted( $post_id ) {
+		// Eerst de koppeling weghalen, zodat on_trash() niet nog eens probeert de taak in Asana te verwijderen.
+		foreach ( self::LINK_META as $key ) {
+			delete_post_meta( $post_id, $key );
+		}
+		update_post_meta( $post_id, '_sfb_asana_deleted', 1 );
+		if ( 'trash' !== get_post_status( $post_id ) ) {
+			wp_trash_post( $post_id );
+		}
+	}
+
+	/**
+	 * Zoekt feedback waarvan de taak in Asana verwijderd is.
+	 *
+	 * Vergelijkt de taken die nog in het project staan met de gekoppelde feedback. Een taak die
+	 * ontbreekt, wordt apart nagevraagd: alleen bij "bestaat niet" (404) gaat de feedback naar de
+	 * prullenbak. Een taak die naar een ander project is verplaatst, blijft dus gewoon gekoppeld.
+	 * Lukt het ophalen van de lijst niet volledig, dan gebeurt er niets.
+	 *
+	 * @return int|WP_Error Aantal feedback-items dat naar de prullenbak is gegaan.
+	 */
+	public static function detect_deleted() {
+		if ( ! self::is_configured() ) {
+			return 0;
+		}
+		$linked = get_posts(
+			array(
+				'post_type'   => SFB_POST_TYPE,
+				'post_status' => 'publish',
+				'numberposts' => -1,
+				'fields'      => 'ids',
+				'meta_query'  => array( // phpcs:ignore WordPress.DB.SlowDBQuery
+					array(
+						'key'     => '_sfb_asana_gid',
+						'compare' => 'EXISTS',
+					),
+				),
+			)
+		);
+		if ( ! $linked ) {
+			return 0;
+		}
+
+		// Alle taken in het project, ook voltooide (completed_since in het verleden).
+		$path   = '/tasks?limit=100&project=' . rawurlencode( sfb_settings()['asana_project'] ) . '&completed_since=1970-01-01T00:00:00Z&opt_fields=gid';
+		$seen   = array();
+		$offset = '';
+		$pages  = 0;
+		do {
+			if ( ++$pages > 50 ) {
+				return 0; // Meer dan 5.000 taken: lijst niet compleet, dus niets als verwijderd beschouwen.
+			}
+			$json = self::request_page( $path . ( $offset ? '&offset=' . rawurlencode( $offset ) : '' ) );
+			if ( is_wp_error( $json ) ) {
+				return $json;
+			}
+			foreach ( (array) ( $json['data'] ?? array() ) as $task ) {
+				$seen[ (string) ( $task['gid'] ?? '' ) ] = true;
+			}
+			$offset = $json['next_page']['offset'] ?? '';
+		} while ( $offset );
+
+		$trashed = 0;
+		$checked = 0;
+		foreach ( $linked as $post_id ) {
+			$gid = (string) get_post_meta( $post_id, '_sfb_asana_gid', true );
+			if ( isset( $seen[ $gid ] ) ) {
+				continue;
+			}
+			if ( ++$checked > 10 ) {
+				break; // De rest volgt bij de volgende sync.
+			}
+			$task = self::request( 'GET', '/tasks/' . rawurlencode( $gid ) . '?opt_fields=gid' );
+			$err  = is_wp_error( $task ) ? (array) $task->get_error_data() : array();
+			if ( is_wp_error( $task ) && 404 === (int) ( $err['http'] ?? 0 ) ) {
+				self::remote_deleted( $post_id );
+				$trashed++;
+			}
+		}
+		return $trashed;
+	}
+
+	/**
+	 * Verwijderingen die eerder mislukten (feedback al in de prullenbak) opnieuw proberen.
+	 */
+	public static function retry_pending_deletes() {
+		$ids = get_posts(
+			array(
+				'post_type'   => SFB_POST_TYPE,
+				'post_status' => 'trash',
+				'numberposts' => 20,
+				'fields'      => 'ids',
+				'meta_query'  => array( // phpcs:ignore WordPress.DB.SlowDBQuery
+					array(
+						'key'     => '_sfb_asana_delete_pending',
+						'compare' => 'EXISTS',
+					),
+				),
+			)
+		);
+		foreach ( $ids as $post_id ) {
+			self::delete_remote( $post_id, get_post_meta( $post_id, '_sfb_asana_delete_pending', true ) );
+		}
 	}
 
 	/**
@@ -547,7 +732,10 @@ class SFB_Asana {
 			}
 		}
 
-		// Eerst alle gewijzigde taken in één keer (status voltooid/open, toegewezen, sectie).
+		// Eerder mislukte verwijderingen in Asana opnieuw proberen.
+		self::retry_pending_deletes();
+
+		// Alle gewijzigde taken in één keer (status voltooid/open, toegewezen, sectie) + verwijderde taken.
 		self::sync_changed( 0 );
 
 		// Daarna per item de reacties bijwerken.
@@ -695,6 +883,11 @@ add_filter(
 );
 
 add_action( 'sfb_asana_cron', array( 'SFB_Asana', 'cron' ) );
+
+// Verwijderen in WordPress ↔ verwijderen in Asana.
+add_action( 'trashed_post', array( 'SFB_Asana', 'on_trash' ) );
+add_action( 'untrashed_post', array( 'SFB_Asana', 'on_untrash' ) );
+add_action( 'before_delete_post', array( 'SFB_Asana', 'on_delete' ) );
 
 add_action(
 	'init',
