@@ -637,6 +637,8 @@
       var hasBox = x2 > x1 && y2 > y1;
 
       ctx.save();
+      // html2canvas laat zijn eigen transformatie (translate(-x, -y) van de uitsnede) op het canvas staan.
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.scale(s, s);
 
       // 1. Rest van de pagina dimmen, zodat het element eruit springt.
