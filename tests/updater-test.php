@@ -11,7 +11,7 @@ $FAILS = 0;
 define( 'ABSPATH', __DIR__ );
 define( 'HOUR_IN_SECONDS', 3600 );
 define( 'MINUTE_IN_SECONDS', 60 );
-define( 'SFB_VERSION', '1.4.0' );
+define( 'SFB_VERSION', '1.0.0' );
 $PLUGIN_DIR = sys_get_temp_dir() . '/sfb-updater-test-' . getmypid() . '/site-feedback/';
 @mkdir( $PLUGIN_DIR, 0777, true );
 define( 'SFB_DIR', $PLUGIN_DIR );
@@ -50,9 +50,9 @@ $FILE = 'site-feedback/site-feedback.php';
 ok( isset( $FILTERS['update_plugins_github.com'] ), 'filter voor Update URI (github.com) geregistreerd' );
 
 // Nieuwere release -> update-info met zip uit de release.
-$HTTP = release( 'v1.5.0' );
+$HTTP = release( 'v1.0.1' );
 $u = SFB_Updater::check_update( false, array( 'RequiresPHP' => '7.4' ), $FILE );
-ok( $u['version'] === '1.5.0' && str_ends_with( $u['package'], '/v1.5.0/site-feedback.zip' ) && $u['slug'] === 'site-feedback', 'nieuwere release: versie + zip-URL doorgegeven' );
+ok( $u['version'] === '1.0.1' && str_ends_with( $u['package'], '/v1.0.1/site-feedback.zip' ) && $u['slug'] === 'site-feedback', 'nieuwere release: versie + zip-URL doorgegeven' );
 
 // Cache: tweede check doet geen nieuw verzoek.
 $CALLS = 0; SFB_Updater::check_update( false, array(), $FILE );
@@ -71,16 +71,16 @@ SFB_Updater::clear_cache(); $HTTP = array( 'code' => 403, 'body' => '{"message":
 ok( SFB_Updater::check_update( false, array(), $FILE ) === false, 'GitHub-fout (bijv. rate limit): geen update, geen crash' );
 
 // Force-check vanuit Dashboard -> Updates slaat de cache over (max. 1x per minuut).
-$HTTP = release( 'v1.6.0' ); $_GET['force-check'] = 1; $CALLS = 0;
+$HTTP = release( 'v1.0.2' ); $_GET['force-check'] = 1; $CALLS = 0;
 $u = SFB_Updater::check_update( false, array(), $FILE );
-ok( $CALLS === 1 && $u['version'] === '1.6.0', '"Opnieuw controleren" haalt direct de nieuwste release op' );
+ok( $CALLS === 1 && $u['version'] === '1.0.2', '"Opnieuw controleren" haalt direct de nieuwste release op' );
 $CALLS = 0; SFB_Updater::check_update( false, array(), $FILE );
 ok( $CALLS === 0, 'force-check hooguit 1x per minuut' );
 unset( $_GET['force-check'] );
 
 // Details-venster.
 $info = SFB_Updater::plugin_info( false, 'plugin_information', (object) array( 'slug' => 'site-feedback' ) );
-ok( $info->version === '1.6.0' && str_contains( $info->sections['changelog'], 'Notities' ), '"Details bekijken" toont versie en release-notities' );
+ok( $info->version === '1.0.2' && str_contains( $info->sections['changelog'], 'Notities' ), '"Details bekijken" toont versie en release-notities' );
 ok( SFB_Updater::plugin_info( 'x', 'plugin_information', (object) array( 'slug' => 'akismet' ) ) === 'x', 'details van andere plugins ongemoeid' );
 
 // Git-checkout: nooit via zip updaten (zou .git wissen).

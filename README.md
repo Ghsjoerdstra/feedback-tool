@@ -136,8 +136,8 @@ De tests bootsen WordPress en Asana na, dus je hebt geen WordPress-installatie o
 2. Commit de wijziging en push een tag met hetzelfde nummer:
 
    ```bash
-   git tag v1.5.0
-   git push origin v1.5.0
+   git tag v1.0.4
+   git push origin v1.0.4
    ```
 
 3. GitHub Actions test de code, bouwt `site-feedback.zip` en zet die in een nieuwe release. In de zip zitten de tests, de workflow en de git-bestanden niet.

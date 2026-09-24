@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Site Feedback
  * Description:       Visuele feedbacktool voor beheerders: klik een element aan, beschrijf wat er mis is en de tool bewaart gebruiker, URL, element, muispositie en een screenshot. Met koppeling in twee richtingen met Asana.
- * Version:           1.5.3
+ * Version:           1.0.3
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Update URI:        https://github.com/Ghsjoerdstra/feedback-tool
@@ -12,7 +12,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'SFB_VERSION', '1.5.3' );
+define( 'SFB_VERSION', '1.0.3' );
 define( 'SFB_FILE', __FILE__ );
 define( 'SFB_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SFB_URL', plugin_dir_url( __FILE__ ) );
@@ -26,25 +26,6 @@ require_once SFB_DIR . 'includes/updater.php';
 if ( is_admin() ) {
 	require_once SFB_DIR . 'includes/admin.php';
 }
-
-/**
- * Eenmalige opruiming bij updaten naar 1.2: de oude token-ondersteuning voor externe sites is verwijderd.
- */
-add_action(
-	'admin_init',
-	function () {
-		if ( version_compare( (string) get_option( 'sfb_version', '0' ), '1.2.0', '>=' ) ) {
-			return;
-		}
-		delete_metadata( 'user', 0, '_sfb_token_hash', '', true ); // Oude persoonlijke tokens ongeldig maken.
-		$settings = get_option( 'sfb_settings' );
-		if ( is_array( $settings ) && array_key_exists( 'allowed_origins', $settings ) ) {
-			unset( $settings['allowed_origins'] );
-			update_option( 'sfb_settings', $settings );
-		}
-		update_option( 'sfb_version', SFB_VERSION );
-	}
-);
 
 register_deactivation_hook(
 	__FILE__,
