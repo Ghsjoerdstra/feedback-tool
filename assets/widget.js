@@ -690,6 +690,27 @@
       return function () { if (style.parentNode) style.parentNode.removeChild(style); };
     }
 
+    /**
+     * CSS die via JavaScript is toegevoegd met `document.adoptedStyleSheets` (bijv. door Cookiebot, web components
+     * of moderne thema's) neemt html2canvas niet mee naar de kopie. Onderdelen die daarmee zijn opgemaakt,
+     * klappen dan in of rekken uit, waardoor de kopie een andere lengte krijgt. Daarom zetten we die CSS
+     * als gewone <style> in de kopie. Adopted sheets gelden na de gewone CSS, dus achteraan.
+     */
+    function copyAdoptedStyles(doc) {
+      var sheets = document.adoptedStyleSheets;
+      if (!sheets || !sheets.length) return;
+      var css = '';
+      for (var i = 0; i < sheets.length; i++) {
+        try {
+          for (var j = 0; j < sheets[i].cssRules.length; j++) css += sheets[i].cssRules[j].cssText + '\n';
+        } catch (e) { /* niet leesbaar: overslaan */ }
+      }
+      if (!css) return;
+      var style = doc.createElement('style');
+      style.textContent = css;
+      (doc.head || doc.documentElement).appendChild(style);
+    }
+
     function takeScreenshot(draft, rect) {
       var v = draft.viewport;
       var width = document.documentElement.clientWidth || v.width;
@@ -713,6 +734,8 @@
           logging: false,
           ignoreElements: function (n) { return n === host || n.id === 'sfb-root' || n.id === 'sfb-h2c-size'; },
           onclone: function (doc) {
+            copyAdoptedStyles(doc);
+
             // Bij `scroll-behavior: smooth` scrolt de kopie geanimeerd en staat hij nog bovenaan als er getekend wordt.
             doc.documentElement.style.setProperty('scroll-behavior', 'auto', 'important');
             if (doc.body) doc.body.style.setProperty('scroll-behavior', 'auto', 'important');

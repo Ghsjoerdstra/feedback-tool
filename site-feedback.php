@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Site Feedback
  * Description:       Visuele feedbacktool voor beheerders: klik een element aan, beschrijf wat er mis is en de tool bewaart gebruiker, URL, element, muispositie en een screenshot. Met koppeling in twee richtingen met Asana.
- * Version:           1.5.2
+ * Version:           1.5.3
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Update URI:        https://github.com/Ghsjoerdstra/feedback-tool
@@ -12,7 +12,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'SFB_VERSION', '1.5.2' );
+define( 'SFB_VERSION', '1.5.3' );
 define( 'SFB_FILE', __FILE__ );
 define( 'SFB_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SFB_URL', plugin_dir_url( __FILE__ ) );
