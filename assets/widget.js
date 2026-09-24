@@ -671,19 +671,69 @@
       ctx.restore();
     }
 
+    /**
+     * html2canvas tekent een kopie van de pagina in een verborgen iframe. Thema-CSS zoals
+     * `iframe { height: auto }` (veel voorkomend op mobiel) maakt dat iframe 150px hoog, waardoor de kopie
+     * een andere opbouw krijgt en de screenshot een verkeerd stuk van de pagina toont. Daarom zetten we
+     * de maat van dat iframe vast zolang de screenshot loopt.
+     */
+    function lockCloneFrameSize(width, height) {
+      var style = document.createElement('style');
+      style.id = 'sfb-h2c-size';
+      style.textContent = 'iframe.html2canvas-container{' +
+        'width:' + width + 'px!important;height:' + height + 'px!important;' +
+        'min-width:0!important;max-width:none!important;min-height:0!important;max-height:none!important;' +
+        'margin:0!important;padding:0!important;border:0!important;transform:none!important}';
+      (document.head || document.documentElement).appendChild(style);
+      return function () { if (style.parentNode) style.parentNode.removeChild(style); };
+    }
+
     function takeScreenshot(draft, rect) {
       var v = draft.viewport;
       var width = document.documentElement.clientWidth || v.width;
+      var el = draft._el;
+      var unlock = function () {};
+      var cleanup = function () {
+        unlock();
+        if (el && el.removeAttribute) el.removeAttribute('data-sfb-target');
+      };
       return loadHtml2Canvas().then(function (h2c) {
-        return h2c(document.documentElement, {
+        unlock = lockCloneFrameSize(width, v.height);
+        if (el && el.setAttribute) el.setAttribute('data-sfb-target', '');
+        // html2canvas rekent met de scrollpositie op het moment van aanroepen.
+        var wx = window.scrollX, wy = window.scrollY;
+        var opts = {
           x: v.scroll_x, y: v.scroll_y,
           width: width, height: v.height,
           windowWidth: width, windowHeight: v.height,
           scale: 1,
           useCORS: true,
           logging: false,
-          ignoreElements: function (n) { return n === host || n.id === 'sfb-root'; }
-        });
+          ignoreElements: function (n) { return n === host || n.id === 'sfb-root' || n.id === 'sfb-h2c-size'; },
+          onclone: function (doc) {
+            // Bij `scroll-behavior: smooth` scrolt de kopie geanimeerd en staat hij nog bovenaan als er getekend wordt.
+            doc.documentElement.style.setProperty('scroll-behavior', 'auto', 'important');
+            if (doc.body) doc.body.style.setProperty('scroll-behavior', 'auto', 'important');
+            if (doc.defaultView) doc.defaultView.scrollTo(v.scroll_x, v.scroll_y);
+
+            // Vangnet: wijkt de kopie toch af van de echte pagina (andere scrollpositie of opbouw), dan leggen we
+            // de uitsnede zo dat het aangeklikte element op dezelfde plek staat als waar de gebruiker het zag.
+            // html2canvas leest opts.x/y pas na onclone.
+            var target = doc.querySelector('[data-sfb-target]');
+            if (!target) return;
+            var r = target.getBoundingClientRect();
+            if (!r.width && !r.height) return;
+            opts.x = Math.max(0, r.left + wx - rect.left);
+            opts.y = Math.max(0, r.top + wy - rect.top);
+          }
+        };
+        return h2c(document.documentElement, opts);
+      }).then(function (canvas) {
+        cleanup();
+        return canvas;
+      }, function (err) {
+        cleanup();
+        throw err;
       }).then(function (canvas) {
         annotate(canvas, canvas.width / width, width, v.height, rect, draft);
 
